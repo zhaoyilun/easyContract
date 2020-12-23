@@ -25,6 +25,7 @@ func TestFunction(t *testing.T) {
 	fmt.Println(c.toString())
 }
 
+//This is a teset function
 func TestNewCpp(t *testing.T) {
 	va := newVariable("abcd", "int")
 

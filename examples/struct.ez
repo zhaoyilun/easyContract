@@ -1,0 +1,24 @@
+def struct counter{
+  name key
+  int emplaced
+  int modified
+  int erased
+}
+def table counts{
+  struct counter
+  index{
+    int key.value
+  }
+}
+
+
+--------------------------------
+struct [[eosio::table]] counter {
+  name key;
+  uint64_t emplaced;
+  uint64_t modified;
+  uint64_t erased;
+  uint64_t primary_key() const { return key.value; }
+};
+
+using count_index = eosio::multi_index<"counts"_n, counter>;

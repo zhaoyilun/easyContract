@@ -1,0 +1,24 @@
+def action count{
+  input{
+    name user
+    str type
+  }
+  require_auth{
+    name "addressbook"
+  }
+  table{
+    counts counted
+  }
+  function{
+    is user in counted?{
+      yes{
+        is type equals "type"?{
+
+        }
+      }
+      no{
+
+      }
+    }
+  }
+}
