@@ -6,11 +6,12 @@
 // It takes a []byte as source which can then be tokenized
 // through repeated calls to the Scan method.
 //
-package parser
+package scan
 
 import (
 	"bytes"
 	"fmt"
+	"github.com/zhaoyilun/easyContract/token"
 	"path/filepath"
 	"strconv"
 	"unicode"
@@ -22,7 +23,7 @@ import (
 // position and an error message. The position points to the beginning of
 // the offending
 //
-type ErrorHandler func(pos Position, msg string)
+type ErrorHandler func(pos token.Position, msg string)
 
 // A Scanner holds the scanner's internal state while processing
 // a given text. It can be allocated as part of another data
@@ -30,7 +31,7 @@ type ErrorHandler func(pos Position, msg string)
 //
 type Scanner struct {
 	// immutable state
-	file *File        // source file handle
+	file *token.File  // source file handle
 	dir  string       // directory portion of file.Name()
 	src  []byte       // source
 	err  ErrorHandler // error reporting; or nil
@@ -96,6 +97,7 @@ func (s *Scanner) peek() byte {
 // A mode value is a set of flags (or 0).
 // They control scanner behavior.
 //
+// type Mode uint
 type Mode uint
 
 const (
@@ -118,7 +120,7 @@ const (
 // Note that Init may call err if there is an error in the first character
 // of the file.
 //
-func (s *Scanner) Init(file *File, src []byte, err ErrorHandler, mode Mode) {
+func (s *Scanner) Init(file *token.File, src []byte, err ErrorHandler, mode Mode) {
 	// Explicitly initialize all fields since a scanner may be reused.
 	if file.Size() != len(src) {
 		panic(fmt.Sprintf("file size (%d) does not match src len (%d)", file.Size(), len(src)))
@@ -400,9 +402,9 @@ func (s *Scanner) digits(base int, invalid *int) (digsep int) {
 	return
 }
 
-func (s *Scanner) scanNumber() (Token, string) {
+func (s *Scanner) scanNumber() (token.Token, string) {
 	offs := s.offset
-	tok := ILLEGAL
+	tok := token.ILLEGAL
 
 	base := 10        // number base
 	prefix := rune(0) // one of 0 (decimal), '0' (0-octal), 'x', 'o', or 'b'
@@ -411,7 +413,7 @@ func (s *Scanner) scanNumber() (Token, string) {
 
 	// integer part
 	if s.ch != '.' {
-		tok = INT
+		tok = token.INT
 		if s.ch == '0' {
 			s.next()
 			switch lower(s.ch) {
@@ -434,7 +436,7 @@ func (s *Scanner) scanNumber() (Token, string) {
 
 	// fractional part
 	if s.ch == '.' {
-		tok = FLOAT
+		tok = token.FLOAT
 		if prefix == 'o' || prefix == 'b' {
 			s.error(s.offset, "invalid radix point in "+litname(prefix))
 		}
@@ -455,7 +457,7 @@ func (s *Scanner) scanNumber() (Token, string) {
 			s.errorf(s.offset, "%q exponent requires hexadecimal mantissa", s.ch)
 		}
 		s.next()
-		tok = FLOAT
+		tok = token.FLOAT
 		if s.ch == '+' || s.ch == '-' {
 			s.next()
 		}
@@ -464,18 +466,18 @@ func (s *Scanner) scanNumber() (Token, string) {
 		if ds&1 == 0 {
 			s.error(s.offset, "exponent has no digits")
 		}
-	} else if prefix == 'x' && tok == FLOAT {
+	} else if prefix == 'x' && tok == token.FLOAT {
 		s.error(s.offset, "hexadecimal mantissa requires a 'p' exponent")
 	}
 
 	// suffix 'i'
 	if s.ch == 'i' {
-		tok = IMAG
+		tok = token.IMAG
 		s.next()
 	}
 
 	lit := string(s.src[offs:s.offset])
-	if tok == INT && invalid >= 0 {
+	if tok == token.INT && invalid >= 0 {
 		s.errorf(invalid, "invalid digit %q in %s", lit[invalid-offs], litname(prefix))
 	}
 	if digsep&2 != 0 {
@@ -711,7 +713,7 @@ func (s *Scanner) skipWhitespace() {
 // respectively. Otherwise, the result is tok0 if there was no other
 // matching character, or tok2 if the matching character was ch2.
 
-func (s *Scanner) switch2(tok0, tok1 Token) Token {
+func (s *Scanner) switch2(tok0, tok1 token.Token) token.Token {
 	if s.ch == '=' {
 		s.next()
 		return tok1
@@ -719,7 +721,7 @@ func (s *Scanner) switch2(tok0, tok1 Token) Token {
 	return tok0
 }
 
-func (s *Scanner) switch3(tok0, tok1 Token, ch2 rune, tok2 Token) Token {
+func (s *Scanner) switch3(tok0, tok1 token.Token, ch2 rune, tok2 token.Token) token.Token {
 	if s.ch == '=' {
 		s.next()
 		return tok1
@@ -731,7 +733,7 @@ func (s *Scanner) switch3(tok0, tok1 Token, ch2 rune, tok2 Token) Token {
 	return tok0
 }
 
-func (s *Scanner) switch4(tok0, tok1 Token, ch2 rune, tok2, tok3 Token) Token {
+func (s *Scanner) switch4(tok0, tok1 token.Token, ch2 rune, tok2, tok3 token.Token) token.Token {
 	if s.ch == '=' {
 		s.next()
 		return tok1
@@ -778,7 +780,7 @@ func (s *Scanner) switch4(tok0, tok1 Token, ch2 rune, tok2, tok3 Token) Token {
 // set with Init. Token positions are relative to that file
 // and thus relative to the file set.
 //
-func (s *Scanner) Scan() (pos Pos, tok Token, lit string) {
+func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 scanAgain:
 	s.skipWhitespace()
 
@@ -792,14 +794,14 @@ scanAgain:
 		lit = s.scanIdentifier()
 		if len(lit) > 1 {
 			// keywords are longer than one letter - avoid lookup otherwise
-			tok = Lookup(lit)
+			tok = token.Lookup(lit)
 			switch tok {
-			case IDENT, BREAK, CONTINUE, FALLTHROUGH, RETURN:
+			case token.IDENT, token.BREAK, token.CONTINUE, token.FALLTHROUGH, token.RETURN:
 				insertSemi = true
 			}
 		} else {
 			insertSemi = true
-			tok = IDENT
+			tok = token.IDENT
 		}
 	case isDecimal(ch) || ch == '.' && isDecimal(rune(s.peek())):
 		insertSemi = true
@@ -810,69 +812,69 @@ scanAgain:
 		case -1:
 			if s.insertSemi {
 				s.insertSemi = false // EOF consumed
-				return pos, SEMICOLON, "\n"
+				return pos, token.SEMICOLON, "\n"
 			}
-			tok = EOF
+			tok = token.EOF
 		case '\n':
 			// we only reach here if s.insertSemi was
 			// set in the first place and exited early
 			// from s.skipWhitespace()
 			s.insertSemi = false // newline consumed
-			return pos, SEMICOLON, "\n"
+			return pos, token.SEMICOLON, "\n"
 		case '"':
 			insertSemi = true
-			tok = STRING
+			tok = token.STRING
 			lit = s.scanString()
 		case '\'':
 			insertSemi = true
-			tok = CHAR
+			tok = token.CHAR
 			lit = s.scanRune()
 		case '`':
 			insertSemi = true
-			tok = STRING
+			tok = token.STRING
 			lit = s.scanRawString()
 		case ':':
-			tok = s.switch2(COLON, DEFINE)
+			tok = s.switch2(token.COLON, token.DEFINE)
 		case '.':
 			// fractions starting with a '.' are handled by outer switch
-			tok = PERIOD
+			tok = token.PERIOD
 			if s.ch == '.' && s.peek() == '.' {
 				s.next()
 				s.next() // consume last '.'
-				tok = ELLIPSIS
+				tok = token.ELLIPSIS
 			}
 		case ',':
-			tok = COMMA
+			tok = token.COMMA
 		case ';':
-			tok = SEMICOLON
+			tok = token.SEMICOLON
 			lit = ";"
 		case '(':
-			tok = LPAREN
+			tok = token.LPAREN
 		case ')':
 			insertSemi = true
-			tok = RPAREN
+			tok = token.RPAREN
 		case '[':
-			tok = LBRACK
+			tok = token.LBRACK
 		case ']':
 			insertSemi = true
-			tok = RBRACK
+			tok = token.RBRACK
 		case '{':
-			tok = LBRACE
+			tok = token.LBRACE
 		case '}':
 			insertSemi = true
-			tok = RBRACE
+			tok = token.RBRACE
 		case '+':
-			tok = s.switch3(ADD, ADD_ASSIGN, '+', INC)
-			if tok == INC {
+			tok = s.switch3(token.ADD, token.ADD_ASSIGN, '+', token.INC)
+			if tok == token.INC {
 				insertSemi = true
 			}
 		case '-':
-			tok = s.switch3(SUB, SUB_ASSIGN, '-', DEC)
-			if tok == DEC {
+			tok = s.switch3(token.SUB, token.SUB_ASSIGN, '-', token.DEC)
+			if tok == token.DEC {
 				insertSemi = true
 			}
 		case '*':
-			tok = s.switch2(MUL, MUL_ASSIGN)
+			tok = s.switch2(token.MUL, token.MUL_ASSIGN)
 		case '/':
 			if s.ch == '/' || s.ch == '*' {
 				// comment
@@ -882,7 +884,7 @@ scanAgain:
 					s.offset = s.file.Offset(pos)
 					s.rdOffset = s.offset + 1
 					s.insertSemi = false // newline consumed
-					return pos, SEMICOLON, "\n"
+					return pos, token.SEMICOLON, "\n"
 				}
 				comment := s.scanComment()
 				if s.mode&ScanComments == 0 {
@@ -890,44 +892,44 @@ scanAgain:
 					s.insertSemi = false // newline consumed
 					goto scanAgain
 				}
-				tok = COMMENT
+				tok = token.COMMENT
 				lit = comment
 			} else {
-				tok = s.switch2(QUO, QUO_ASSIGN)
+				tok = s.switch2(token.QUO, token.QUO_ASSIGN)
 			}
 		case '%':
-			tok = s.switch2(REM, REM_ASSIGN)
+			tok = s.switch2(token.REM, token.REM_ASSIGN)
 		case '^':
-			tok = s.switch2(XOR, XOR_ASSIGN)
+			tok = s.switch2(token.XOR, token.XOR_ASSIGN)
 		case '<':
 			if s.ch == '-' {
 				s.next()
-				tok = ARROW
+				tok = token.ARROW
 			} else {
-				tok = s.switch4(LSS, LEQ, '<', SHL, SHL_ASSIGN)
+				tok = s.switch4(token.LSS, token.LEQ, '<', token.SHL, token.SHL_ASSIGN)
 			}
 		case '>':
-			tok = s.switch4(GTR, GEQ, '>', SHR, SHR_ASSIGN)
+			tok = s.switch4(token.GTR, token.GEQ, '>', token.SHR, token.SHR_ASSIGN)
 		case '=':
-			tok = s.switch2(ASSIGN, EQL)
+			tok = s.switch2(token.ASSIGN, token.EQL)
 		case '!':
-			tok = s.switch2(NOT, NEQ)
+			tok = s.switch2(token.NOT, token.NEQ)
 		case '&':
 			if s.ch == '^' {
 				s.next()
-				tok = s.switch2(AND_NOT, AND_NOT_ASSIGN)
+				tok = s.switch2(token.AND_NOT, token.AND_NOT_ASSIGN)
 			} else {
-				tok = s.switch3(AND, AND_ASSIGN, '&', LAND)
+				tok = s.switch3(token.AND, token.AND_ASSIGN, '&', token.LAND)
 			}
 		case '|':
-			tok = s.switch3(OR, OR_ASSIGN, '|', LOR)
+			tok = s.switch3(token.OR, token.OR_ASSIGN, '|', token.LOR)
 		default:
 			// next reports unexpected BOMs - don't repeat
 			if ch != bom {
 				s.errorf(s.file.Offset(pos), "illegal character %#U", ch)
 			}
 			insertSemi = s.insertSemi // preserve insertSemi info
-			tok = ILLEGAL
+			tok = token.ILLEGAL
 			lit = string(ch)
 		}
 	}

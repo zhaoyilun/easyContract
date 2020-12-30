@@ -2,6 +2,8 @@ package parser
 
 import (
 	"fmt"
+	"github.com/zhaoyilun/easyContract/scan"
+	"github.com/zhaoyilun/easyContract/token"
 )
 
 func TestMain() {
@@ -85,8 +87,8 @@ table currency_stats{
 createTable(account,"accounts")
 createTable(currency_stats,"stat")
 	`)
-	var s Scanner
-	fset := NewFileSet()
+	var s scan.Scanner
+	fset := token.NewFileSet()
 	file := fset.AddFile("", fset.Base(), len(src))
 	s.Init(file, src, nil, 0)
 
@@ -94,7 +96,7 @@ createTable(currency_stats,"stat")
 		pos, tok, lit := s.Scan()
 		fmt.Printf("%-6s%-8s%q\n", fset.Position(pos), tok, lit)
 
-		if tok == EOF {
+		if tok == token.EOF {
 			break
 		}
 	}

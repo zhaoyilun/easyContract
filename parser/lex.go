@@ -2,6 +2,8 @@ package parser
 
 import (
 	"fmt"
+	"github.com/zhaoyilun/easyContract/scan"
+	"github.com/zhaoyilun/easyContract/token"
 	"io/ioutil"
 	"os"
 )
@@ -13,8 +15,8 @@ func Lex(filepath string) string {
 	}
 
 	src := readFile(filepath)
-	var s Scanner
-	fset := NewFileSet()
+	var s scan.Scanner
+	fset := token.NewFileSet()
 	file := fset.AddFile("", fset.Base(), len(src))
 	s.Init(file, src, nil, 0)
 	var x string
@@ -22,12 +24,11 @@ func Lex(filepath string) string {
 		pos, tok, lit := s.Scan()
 		// fmt.Printf("%-6s%-8s%q\n", fset.Position(pos), tok, lit)
 		tk := fmt.Sprintf("%-6s%-8s%q\n", fset.Position(pos), tok, lit)
-		if tok == EOF {
+		if tok == token.EOF {
 			break
 		}
 		x = x + tk
 	}
-	fmt.Println(x)
 	return x
 }
 

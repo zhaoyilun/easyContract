@@ -15,8 +15,26 @@ limitations under the License.
 */
 package main
 
-import "github.com/zhaoyilun/easyContract/cmd"
+// import "github.com/zhaoyilun/easyContract/cmd"
+import (
+	"fmt"
+	"github.com/zhaoyilun/easyContract/parser"
+)
+
+// import "os"
+// import "fmt"
 
 func main() {
-	cmd.Execute()
+	w := parser.Lex("./examples/eidos.ez")
+	fmt.Println(w)
+
+	// file2, error := os.OpenFile("./2.txt", os.O_RDWR|os.O_CREATE, 0766)
+	// if error != nil {
+	// 	fmt.Println(error)
+	// }
+	// file2.Write([]byte(w))
+	// file2.Close()
+
+	// Dada()
+	// cmd.Execute()
 }
